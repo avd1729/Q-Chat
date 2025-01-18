@@ -5,22 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quantum Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
-    <!-- Add custom Google Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
+
+        /* Ensure the chat container takes full screen height */
         .chat-container {
-            height: calc(100vh - 240px);
+            display: flex;
+            flex-direction: column;
+            height: 100vh; /* Full height of the viewport */
         }
+
+        /* Make the messages area scrollable */
         .messages-container {
-            height: calc(100% - 160px);
-            overflow-y: auto;
+            flex: 1; /* Take up remaining space */
+            padding: 16px; /* Add some padding */
         }
+
+        /* Style for individual message bubbles */
         .message-bubble {
             max-width: 80%;
             word-wrap: break-word;
+        }
+
+        .chat-bubble {
+            transition: all 0.3s ease-in-out;
+        }
+
+        .chat-bubble:hover {
+            transform: translateY(-4px);
+        }
+
+        /* Make sure the input area stays fixed at the bottom */
+        .input-container {
+            background-color: #2d2d2d;
+            border-top: 1px solid #444;
+            padding: 16px;
+            flex-shrink: 0;
         }
     </style>
 </head>
@@ -31,23 +54,25 @@
         <div class="flex items-center space-x-3">
             <div class="h-10 w-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-xl" id="userInitial"></div>
             <div>
-                <h1 class="text-2xl font-bold">Quantum Chat</h1>
+                <h1 class="text-2xl font-bold text-white">Quantum Chat</h1>
                 <p class="text-sm text-gray-400" id="userDisplay"></p>
             </div>
         </div>
         <div class="flex items-center space-x-4">
-            <div id="connectionStatus" class="flex items-center">
-                <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-                <span class="text-sm text-gray-400">Connected</span>
+            <div id="connectionStatus" class="flex items-center text-sm text-gray-400 space-x-2">
+                <span class="w-3 h-3 bg-green-500 rounded-full"></span>
+                <span>Connected</span>
             </div>
-            <button onclick="logout()"
-                    class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors duration-200">
-                Logout
+            <button onclick="logout()" class="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7" />
+                </svg>
+                <span>Logout</span>
             </button>
         </div>
     </div>
 
-    <!-- Protocol Initialization (Only for Alice) -->
+    <!-- Protocol Initialization -->
     <div id="initSection" class="bg-gray-800 rounded-lg shadow-lg p-6 mb-6" style="display: none;">
         <h2 class="text-xl font-semibold mb-4 text-indigo-400">Initialize Quantum Channel</h2>
         <form id="initForm" class="space-y-4">
@@ -66,19 +91,16 @@
 
     <!-- Chat Area -->
     <div class="chat-container bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-        <!-- Messages -->
-        <div class="messages-container p-6" id="messages">
-            <!-- Messages will be loaded here -->
-        </div>
+        <div class="messages-container" id="messages"></div>
 
         <!-- Message Input -->
-        <div class="p-4 bg-gray-900">
+        <div class="input-container">
             <form id="messageForm" class="flex items-end space-x-4">
                 <div class="flex-grow">
-                        <textarea id="messageInput"
-                                  class="w-full bg-gray-700 border-gray-600 rounded-lg text-gray-100 resize-none"
-                                  rows="3"
-                                  placeholder="Type your message..."></textarea>
+                    <textarea id="messageInput"
+                              class="w-full bg-gray-700 border-gray-600 rounded-lg text-gray-100 resize-none focus:ring-2 focus:ring-indigo-600"
+                              rows="3"
+                              placeholder="Type your message..."></textarea>
                 </div>
                 <button type="submit"
                         class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors duration-200 flex-shrink-0">
@@ -167,7 +189,6 @@
             }
             const data = await response.json();
 
-            // For each encrypted message, decrypt it if we're the recipient
             const decryptedMessages = await Promise.all(data.messages.map(async (msg) => {
                 if (msg.sender !== currentUser) {
                     try {
@@ -208,22 +229,20 @@
                 msg.decryptedText;
 
             return `
-                    <div class="mb-4 flex ${isSender ? 'justify-end' : 'justify-start'}">
-                        <div class="message-bubble ${isSender ? 'bg-indigo-600' : 'bg-gray-700'} rounded-lg p-4">
-                            <div class="text-sm text-gray-300 mb-1">${msg.sender}</div>
-                            <div class="text-gray-100">${messageContent}</div>
-                        </div>
+                <div class="mb-4 flex ${isSender ? 'justify-end' : 'justify-start'}">
+                    <div class="chat-bubble ${isSender ? 'bg-indigo-600' : 'bg-gray-700'} rounded-lg p-4">
+                        <div class="text-sm text-gray-300 mb-1">${msg.sender}</div>
+                        <div class="text-gray-100">${messageContent}</div>
                     </div>
-                `;
+                </div>
+            `;
         }).join('');
 
-        // Scroll to bottom
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // Fetch messages periodically
     setInterval(fetchMessages, 1000);
-    fetchMessages(); // Initial fetch
+    fetchMessages();
 </script>
 </body>
 </html>
