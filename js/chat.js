@@ -60,6 +60,37 @@ async function initializeProtocol() {
     }
 }
 
+function displayMessage(message, sent) {
+    const messagesContainer = document.getElementById('messages');
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${sent ? 'sent' : 'received'}`;
+    messageElement.textContent = message;
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Auto-scroll to the latest message
+}
+
+async function decryptMessage(ciphertext) {
+    try {
+        const decryptResponse = await fetch('http://localhost:8080/decrypt', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ ciphertext: ciphertext })
+        });
+
+        const decryptData = await decryptResponse.json();
+        return decryptData.plaintext;
+    } catch (error) {
+        console.error('Failed to decrypt message:', error);
+        throw error;
+    }
+}
+
+// Add a variable to track the last message count
+let lastMessageCount = 0;
+let lastProcessedMessageId = -1; // Add this to track processed messages
+
 async function sendMessage() {
     if (!protocolInitialized) {
         alert('Please initialize the protocol first!');
@@ -85,34 +116,13 @@ async function sendMessage() {
             const data = await response.json();
             if (data.ciphertext) {
                 messageInput.value = ''; // Clear the input field
-
-                // Display the sent message immediately
-                displayMessage(message, true);
-
-                // Add ciphertext to seenMessages to avoid duplication
-                seenMessages.add(data.ciphertext);
-
-                // Optionally poll for new messages (not strictly needed)
-                pollMessages();
+                // Remove the manual pollMessages call - let the interval handle it
             }
         } catch (error) {
             alert('Failed to send message:', error);
         }
     }
 }
-
-
-
-function displayMessage(message, sent) {
-    const messagesContainer = document.getElementById('messages');
-    const messageElement = document.createElement('div');
-    messageElement.className = `message ${sent ? 'sent' : 'received'}`;
-    messageElement.textContent = message;
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Auto-scroll to the latest message
-}
-
-const seenMessages = new Set(); // Keep track of processed messages
 
 async function pollMessages() {
     try {
@@ -124,40 +134,59 @@ async function pollMessages() {
             updateInitializeButton();
         }
 
+        // Only update if we have new messages
+        if (!data.messages || data.messages.length === lastMessageCount) {
+            return; // No new messages, skip update
+        }
+
         const messagesContainer = document.getElementById('messages');
-
-        for (const msg of data.messages) {
-            if (seenMessages.has(msg.ciphertext)) {
-                continue; // Skip messages already displayed
-            }
-            seenMessages.add(msg.ciphertext);
-
-            let plaintext = msg.message;
-
-            if (msg.sender !== currentUser) {
-                try {
-                    const decryptResponse = await fetch('http://localhost:8080/decrypt', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ ciphertext: msg.ciphertext })
-                    });
-
-                    const decryptData = await decryptResponse.json();
-                    plaintext = decryptData.plaintext;
-                } catch (error) {
-                    console.error('Failed to decrypt message:', error);
+        
+        // If this is the first load or we're missing messages, do a full rebuild
+        if (messagesContainer.children.length === 0) {
+            messagesContainer.innerHTML = '';
+            
+            // Process all messages in order
+            for (let i = 0; i < data.messages.length; i++) {
+                const msg = data.messages[i];
+                let plaintext;
+                
+                if (msg.sender === currentUser) {
+                    plaintext = await decryptMessage(msg.ciphertext);
+                    displayMessage(plaintext, true);
+                } else {
+                    try {
+                        plaintext = await decryptMessage(msg.ciphertext);
+                        displayMessage(plaintext, false);
+                    } catch (error) {
+                        console.error('Failed to decrypt message:', error);
+                    }
                 }
             }
-
-            displayMessage(plaintext, msg.sender === currentUser);
+        } else if (data.messages.length > lastMessageCount) {
+            // Only process new messages
+            for (let i = lastMessageCount; i < data.messages.length; i++) {
+                const msg = data.messages[i];
+                let plaintext;
+                
+                if (msg.sender === currentUser) {
+                    plaintext = await decryptMessage(msg.ciphertext);
+                    displayMessage(plaintext, true);
+                } else {
+                    try {
+                        plaintext = await decryptMessage(msg.ciphertext);
+                        displayMessage(plaintext, false);
+                    } catch (error) {
+                        console.error('Failed to decrypt message:', error);
+                    }
+                }
+            }
         }
+
+        lastMessageCount = data.messages.length;
     } catch (error) {
         console.error('Failed to fetch messages:', error);
     }
 }
-
 
 initializeBtn.addEventListener('click', initializeProtocol);
 setInterval(pollMessages, 1000);
