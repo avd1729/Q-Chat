@@ -1,4 +1,3 @@
-// Add this at the beginning of chat.js
 const currentUser = localStorage.getItem('currentUser');
 const currentPath = window.location.pathname;
 
@@ -22,13 +21,13 @@ async function checkInitializationStatus() {
     try {
         const response = await fetch('http://localhost:8080/messages');
         const data = await response.json();
-        
+
         if (data.messages && data.messages.length > 0) {
             protocolInitialized = true;
             updateInitializeButton();
         }
     } catch (error) {
-        console.error('Failed to check initialization status');
+        console.error('Failed to check initialization status:', error);
     }
 }
 
@@ -48,13 +47,16 @@ async function initializeProtocol() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ bits: '1010' })
+            body: JSON.stringify({ bits: 256 })
         });
+
         const data = await response.json();
-        protocolInitialized = true;
-        updateInitializeButton();
+        if (data.message === 'Protocol initialized successfully') {
+            protocolInitialized = true;
+            updateInitializeButton();
+        }
     } catch (error) {
-        alert('Failed to initialize protocol');
+        alert('Failed to initialize protocol:', error);
     }
 }
 
@@ -66,7 +68,7 @@ async function sendMessage() {
 
     const messageInput = document.getElementById('messageInput');
     const message = messageInput.value.trim();
-    
+
     if (message) {
         try {
             const response = await fetch('http://localhost:8080/encrypt', {
@@ -79,13 +81,27 @@ async function sendMessage() {
                     sender: currentUser
                 })
             });
+
             const data = await response.json();
-            messageInput.value = '';
+            if (data.ciphertext) {
+                messageInput.value = ''; // Clear the input field
+
+                // Display the sent message immediately
+                displayMessage(message, true);
+
+                // Add ciphertext to seenMessages to avoid duplication
+                seenMessages.add(data.ciphertext);
+
+                // Optionally poll for new messages (not strictly needed)
+                pollMessages();
+            }
         } catch (error) {
-            alert('Failed to send message');
+            alert('Failed to send message:', error);
         }
     }
 }
+
+
 
 function displayMessage(message, sent) {
     const messagesContainer = document.getElementById('messages');
@@ -93,28 +109,55 @@ function displayMessage(message, sent) {
     messageElement.className = `message ${sent ? 'sent' : 'received'}`;
     messageElement.textContent = message;
     messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Auto-scroll to the latest message
 }
+
+const seenMessages = new Set(); // Keep track of processed messages
 
 async function pollMessages() {
     try {
         const response = await fetch('http://localhost:8080/messages');
         const data = await response.json();
-        
+
         if (data.messages && data.messages.length > 0 && !protocolInitialized) {
             protocolInitialized = true;
             updateInitializeButton();
         }
-        
-        const messages = data.messages;
-        document.getElementById('messages').innerHTML = '';
-        messages.forEach(msg => {
-            displayMessage(msg.message, msg.sender === currentUser);
-        });
+
+        const messagesContainer = document.getElementById('messages');
+
+        for (const msg of data.messages) {
+            if (seenMessages.has(msg.ciphertext)) {
+                continue; // Skip messages already displayed
+            }
+            seenMessages.add(msg.ciphertext);
+
+            let plaintext = msg.message;
+
+            if (msg.sender !== currentUser) {
+                try {
+                    const decryptResponse = await fetch('http://localhost:8080/decrypt', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ ciphertext: msg.ciphertext })
+                    });
+
+                    const decryptData = await decryptResponse.json();
+                    plaintext = decryptData.plaintext;
+                } catch (error) {
+                    console.error('Failed to decrypt message:', error);
+                }
+            }
+
+            displayMessage(plaintext, msg.sender === currentUser);
+        }
     } catch (error) {
-        console.error('Failed to fetch messages');
+        console.error('Failed to fetch messages:', error);
     }
 }
+
 
 initializeBtn.addEventListener('click', initializeProtocol);
 setInterval(pollMessages, 1000);
