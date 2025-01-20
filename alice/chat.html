@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quantum Chat</title>
+    <link rel="stylesheet" href="../css/chat.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2><span id="currentUser"></span></h2>
+            <div>
+                <button id="initializeBtn" class="btn">Initialize Protocol</button>
+                <span id="statusIndicator"></span>
+            </div>
+        </div>
+        <div class="messages-container" id="messages"></div>
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Type a message...">
+            <button class="btn" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+    <script src="../js/chat.js"></script>
+</body>
+</html>
